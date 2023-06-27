@@ -2,19 +2,21 @@ import numpy as np
 import datetime
 import random
 
+#-----パラメーター------
+
 N = 10  #rastrigen関数,rosenbrock関数の次元の数
 num_E = 10**6
 
 
-#並列化適応済
-def rastrigen(array):
+#-----目的関数-----
+
+def rastrigen(array):   #並列化適応済
     array = 10.24*array - 5.12 
     sigma = np.zeros(len(array))
     sigma = array**2 - 10*np.cos(2*np.pi*array)
     return 10*len(array)+sigma.sum()
 
-#for文で計算
-def rosenbrock(array):
+def rosenbrock(array):  #for文で計算
     array = 4.196*array - 2.048
     sigma = 0
     for i in range(0,len(array)-1):
@@ -35,7 +37,8 @@ def  checkfunction(func):
         np.savetxt(cfile,[datetime.datetime.now()],fmt="%s")
 
 
-#差分進化の関数
+
+#------差分進化の関数-----
 class FuncDE:
     def __init__(self,NP,F,Y,CR,ftype):
         self.NP =NP #母集団サイズ
