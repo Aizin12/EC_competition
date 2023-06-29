@@ -39,13 +39,13 @@ def  checkfunction(func):
 
 
 #------差分進化の関数-----
-class FuncDE:
-    def __init__(self,NP,F,Y,CR,ftype):
+class DifferentialEvolution:
+    def __init__(self,NP,F,Y,CR,target):
         self.NP =NP #母集団サイズ
         self.F = F  #差分重量
         self.Y = Y
         self.CR = CR #交差率
-        self.ftype = ftype #目的関数の種類
+        self.target = target #目的関数の種類
         self.ind = np.zeros((NP,D)) #遺伝子
         self.base_verctor = np.zeros(D) #ベースベクトル
         self.v = np.zeros(D) #変異ベクトル
@@ -59,7 +59,7 @@ class FuncDE:
     def evaluate(self):
         result = np.zeros(self.NP)
         for i in range(0,self.NP):
-            result = self.ftype(self.ind[i])
+            result = self.target(self.ind[i])
         return np.amax(result)
 
     #乱数によるベースベクトルの選択
@@ -72,7 +72,7 @@ class FuncDE:
         select = np.random.permutation(self.NP)
         select = select[:2*self.Y]
         
-        sigma = np.zeros(N)
+        sigma = np.zeros(D)
         for i in range(self.Y):
             sigma += (self.ind[int(select[2*i+1])] - self.ind[int(select[2*i])])
 
@@ -86,21 +86,43 @@ class FuncDE:
             r = np.random.rand()
             if(r < self.CR) or (j == jr):
                 self.u = self.v
-        return self.u
-        
 
+    def DE_random_Y_binomial(self):
+        result = np.zeros(int(G))
 
-def DifferentialEvolution(X,Y,Z,NP,F,CR,ftype):
-    evolution = FuncDE(NP,F,Y,CR,ftype)
-    G = num_E / NP
-
-    evolution.initializate()
+        self.initializate()
     
-    for g in range(G):
+        for g in range(int(G)):
+            for i in range(self.NP):
+                target_vector = self.ind[i]
+                self.random_base_select()
+                self.mutation()
+                self.binomial_crossover()
+                if (self.target(self.u) < self.target(target_vector)):
+                    self.ind[i] = self.u
+            result[g] = self.evaluate()
+
+        return result
 
 
-x = FuncDE(100,1,2,1,rosenbrock)
-x.initializate()
-x.random_base_select()
-x.mutation()
-print(x.v)
+    
+
+
+# main
+NP = 10**3
+evolution = DifferentialEvolution(NP,1,1,1,rastrigen)
+G =  num_E/NP
+result = np.zeros((int(G),34))
+
+for i in range(31):
+    np.random.seed(i)
+    result[:,i] = evolution.DE_random_Y_binomial()
+
+for g in range(int(G)):
+    result[:,31] = np.average(result[g])
+    result[:,32] = np.median(result[g])
+    result[:,33] = np.std(result[g])
+
+with open('result.csv','at') as cfile:
+    np.savetxt(cfile,result,delimiter=',')
+    np.savetxt(cfile,[datetime.datetime.now()],fmt="%s")
