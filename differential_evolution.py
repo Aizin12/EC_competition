@@ -4,13 +4,13 @@ import random
 
 #-----パラメーター------
 
-D = 10  #rastrigen関数,rosenbrock関数の次元の数
+D = 10  #rastrigin関数,rosenbrock関数の次元の数
 num_E = 10**5
 
 
 #-----目的関数-----
 
-def rastrigen(array):   #並列化適応済
+def rastrigin(array):   #並列化適応済
     array = 10.24*array - 5.12 
     sigma = np.zeros(len(array))
     sigma = array**2 - 10*np.cos(2*np.pi*array)
@@ -154,20 +154,41 @@ class  Runner:
             np.savetxt(cfile,[datetime.datetime.now()],fmt="%s")
 
     #パラメータ推定
-    def estimate(self):
-        G = 1000 / self.NP
-        evolution = DifferentialEvolution(self.NP,self.F,self.Y,self.CR,G,self.target,self.base_select,self.crossover)
-        result = np.zeros((int(G)+1,5))
+    def estimate(self,type):
+        evolution.path = f"estimate/{evolution.target.__name__}_{type}_{self.NP}_{self.F}_{self.Y}.csv"
+        if (type == "NP"):
+            result = np.zeros(100)
+            for i in range(100):
+                self.NP = 50 + 50*i
+                result[i] = self.est_run()
+           
+        elif (type == "F"):
+            result = np.zeros(100)
+            for i in range(100):
+                self.F = 0.02 + 0.02*i
+                result[i] = self.est_run()
+        
+        result = np.reshape(result,(1, 100))
+        with open(evolution.path,'wt') as fw:
+            np.savetxt(fw,result,delimiter=',')
+            np.savetxt(fw,[datetime.datetime.now()],fmt="%s")   
 
-        for i in range(5):
+
+    #簡易環境
+    def est_run(self):
+        G = 5000 / self.NP
+        evolution = DifferentialEvolution(self.NP,self.F,self.Y,self.CR,G,self.target,self.base_select,self.crossover)
+        result = np.zeros([10,int(G+1)])
+        for i in range(10):
             np.random.seed(i)
-            result[:,i] = evolution.run()
-        print(result)
+            result[i] = evolution.run()
+        return np.average(result[:,int(G)])
+
         
 
 
 # -----main-----
 base_select = "rand"
 crossover = "bin"
-evolution = Runner(100,1,1,1,rastrigen,base_select,crossover)
-evolution.main()
+evolution = Runner(10,1,1,1,rastrigin,base_select,crossover)
+evolution.estimate("F")
