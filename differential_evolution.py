@@ -5,7 +5,7 @@ import random
 #-----パラメーター------
 
 D = 10  #rastrigen関数,rosenbrock関数の次元の数
-num_E = 10**6
+num_E = 10**5
 
 
 #-----目的関数-----
@@ -40,18 +40,25 @@ def  check_function(func,seed):
 
 #------差分進化の関数-----
 class DifferentialEvolution:
-    def __init__(self,NP,F,Y,CR,target):
+    def __init__(self,NP,F,Y,CR,G,target,base_select,crossover):
         self.NP =NP #母集団サイズ
         self.F = F  #スケーリングサイズ
-        self.Y = Y
+        self.Y = Y #差ベクトルの数
         self.CR = CR #交差率
+        self.G = G #世代数
         self.target = target #目的関数の種類
         self.ind = np.zeros((NP,D)) #遺伝子
         self.base_verctor = np.zeros(D) #ベースベクトル
         self.target_vector = np.zeros(D) #ターゲットベクトル
         self.v = np.zeros(D) #変異ベクトル
         self.u = np.zeros(D) #トライアルベクトル
-        self.path = f"./{target.__name__}/DE_{NP}_{F}_{Y}_{CR}.csv" #結果格納用アドレス名
+
+        self.path = f"./{target.__name__}/DE_{base_select}_{Y}_{crossover}_{NP}_{F}_{CR}.csv" #結果格納用アドレス名
+
+        self.base_select = base_select #ベースベクトルの選択方法
+        self.dict_bs = {"rand":self.random_base_select} #参照できるように辞書化
+        self.crossover = crossover #交叉方法
+        self.dict_cr = {"bin":self.binomial_crossover} #参照できるように辞書化
 
     #初期集団生成
     def initializate(self):
@@ -95,19 +102,19 @@ class DifferentialEvolution:
                     self.u[j] = self.v[j].copy()
 
 
-#
-    def DE_random_Y_binomial(self):
-        result = np.zeros(int(G)+1)
+    #進化計算の実行
+    def run(self):
+        result = np.zeros(int(self.G)+1)
 
         self.initializate()
         result[0] = self.evaluate()
     
-        for g in range(int(G)):
+        for g in range(int(self.G)):
             for i in range(self.NP):
                 self.target_vector = self.ind[i].copy()
-                self.random_base_select()
+                self.dict_bs[self.base_select]()
                 self.mutation()
-                self.binomial_crossover()
+                self.dict_cr[self.crossover]()
                 if (self.target(self.u) < self.target(self.target_vector)):
                     self.ind[i] = self.u.copy()
             result[g+1] = self.evaluate()
@@ -116,21 +123,24 @@ class DifferentialEvolution:
 
 #
 class  Runner:
-    def __init__(self,NP,F,Y,CR,target):
+    def __init__(self,NP,F,Y,CR,target,base_select,crossover):
         self.NP =NP #母集団サイズ
         self.F = F  #スケーリングサイズ
         self.Y = Y  #差ベクトルの数
         self.CR = CR #交差率
         self.target = target #目的関数の種類
+        self.base_select = base_select #ベースベクトルの選択方法
+        self.crossover = crossover #交叉方法
         
-    def DE_random_Y_binomial(self):
-        evolution = DifferentialEvolution(self.NP,self.F,self.Y,self.target,self.target)
-        G =  num_E/NP
+    #実環境
+    def main(self):
+        G =  num_E/self.NP
+        evolution = DifferentialEvolution(self.NP,self.F,self.Y,self.CR,G,self.target,self.base_select,self.crossover)
         result = np.zeros((int(G)+1,34))
 
         for i in range(31):
             np.random.seed(i)
-            result[:,i] = evolution.DE_random_Y_binomial()
+            result[:,i] = evolution.run()
 
 
         for g in range(int(G)+1):
@@ -138,12 +148,26 @@ class  Runner:
             result[g,32] = np.median(result[g])
             result[g,33] = np.std(result[g])
 
+
         with open(evolution.path,'wt') as cfile:
             np.savetxt(cfile,result,delimiter=',')
             np.savetxt(cfile,[datetime.datetime.now()],fmt="%s")
+
+    #パラメータ推定
+    def estimate(self):
+        G = 1000 / self.NP
+        evolution = DifferentialEvolution(self.NP,self.F,self.Y,self.CR,G,self.target,self.base_select,self.crossover)
+        result = np.zeros((int(G)+1,5))
+
+        for i in range(5):
+            np.random.seed(i)
+            result[:,i] = evolution.run()
+        print(result)
         
 
 
 # -----main-----
-
-evolution = Runner(100,1,1,1,rastrigen)
+base_select = "rand"
+crossover = "bin"
+evolution = Runner(100,1,1,1,rastrigen,base_select,crossover)
+evolution.main()
