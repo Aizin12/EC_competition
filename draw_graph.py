@@ -22,7 +22,7 @@ def read_file(subject,G,trails):
     with open(subject,"r")as fr:
         for i in range(G+1):
             result[i] = fr.readline().split(",")
-    return result[:,trails]
+    return result[:,31]
 
 
 def make_scatterplot(result):
@@ -76,13 +76,14 @@ def read_es_file(G,trails):
         cnt += 1
     return result
 
-# data = []
-# cnt = 0
-# trails = 10
-# for subject in args.subject:
-#     G = 10**5/int(parameter[cnt][5])
-#     data.append(read_file(subject,int(G),trails))
-#     cnt += 1
+data = []
+cnt = 0
+trails = 33
+for subject in args.subject:
+    G = 10**5/int(parameter[cnt][5])
+    data.append(read_file(subject,int(G),trails))
+    cnt += 1
+make_scatterplot(data)
 
-data = read_es_file(1,100)
-make_estimate(data)
+# data = read_es_file(1,100)
+# make_estimate(data)
