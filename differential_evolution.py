@@ -56,7 +56,7 @@ class DifferentialEvolution:
         self.path = f"./{target.__name__}/DE_{base_select}_{Y}_{crossover}_{NP}_{F}_{CR}.csv" #結果格納用アドレス名
 
         self.base_select = base_select #ベースベクトルの選択方法
-        self.dict_bs = {"rand":self.random_base_select} #参照できるように辞書化
+        self.dict_bs = {"rand":self.random_base_select, "best":self.best_base_select} #参照できるように辞書化
         self.crossover = crossover #交叉方法
         self.dict_cr = {"bin":self.binomial_crossover} #参照できるように辞書化
 
@@ -74,6 +74,13 @@ class DifferentialEvolution:
     #乱数によるベースベクトルの選択
     def random_base_select(self):
         self.base_verctor = self.ind[np.random.randint(0,self.NP)].copy()
+
+    #最良選択によるベースベクトルの選定
+    def best_base_select(self):
+        best = np.zeros(self.NP)
+        for i in range(self.NP):
+            best[i] = self.target(self.ind[i])
+        self.base_verctor = self.ind[np.argmin(best)]
 
     #差分突然変異
     def mutation(self):
@@ -100,6 +107,8 @@ class DifferentialEvolution:
                     self.u[j] = self.base_verctor[j] + np.random.rand()*(1-self.base_verctor[j])
                 else:
                     self.u[j] = self.v[j].copy()
+
+
 
 
     #進化計算の実行
@@ -155,20 +164,27 @@ class  Runner:
 
     #パラメータ推定
     def estimate(self,type):
-        evolution.path = f"estimate/{evolution.target.__name__}_{type}_{self.NP}_{self.F}_{self.Y}.csv"
+        evolution.path = f"estimate/{evolution.target.__name__}_{type}_{self.NP}_{self.F}_{self.CR}_{self.base_select}_{self.crossover}.csv"
+        result = np.zeros((2,100))
         if (type == "NP"):
-            result = np.zeros(100)
             for i in range(100):
                 self.NP = 50 + 50*i
-                result[i] = self.est_run()
+                result[0,i] = self.NP
+                result[1,i] = self.est_run()
            
         elif (type == "F"):
-            result = np.zeros(100)
             for i in range(100):
                 self.F = 0.02 + 0.02*i
-                result[i] = self.est_run()
+                result[0,i] = self.F
+                result[1,i] = self.est_run()
+
+        elif (type == "CR"):
+            for i in range(100):
+                self.CR = 0.01*i
+                result[0,i] = self.CR
+                result[1,i] = self.est_run()
         
-        result = np.reshape(result,(1, 100))
+        result = np.reshape(result,(2, 100))
         with open(evolution.path,'wt') as fw:
             np.savetxt(fw,result,delimiter=',')
             np.savetxt(fw,[datetime.datetime.now()],fmt="%s")   
@@ -188,7 +204,7 @@ class  Runner:
 
 
 # -----main-----
-base_select = "rand"
+base_select = "best"
 crossover = "bin"
-evolution = Runner(10,1,1,1,rastrigin,base_select,crossover)
-evolution.estimate("F")
+evolution = Runner(100,0.08,1,0,rosenbrock,base_select,crossover) #NP,F,Y,CR,target,base_select,crossover
+evolution.main()
