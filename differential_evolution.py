@@ -1,6 +1,7 @@
 import numpy as np
 import datetime
 import random
+from scipy import stats
 
 #-----パラメーター------
 
@@ -48,15 +49,27 @@ class DifferentialEvolution:
         self.G = G #世代数
         self.target = target #目的関数の種類
         self.ind = np.zeros((NP,D)) #遺伝子
-        self.base_verctor = np.zeros(D) #ベースベクトル
+        self.base_vector = np.zeros(D) #ベースベクトル
+        self.base_id = 0    #ベースベクトルのID
         self.target_vector = np.zeros(D) #ターゲットベクトル
+        self.best_vector = np.zeros(D)  #最適な遺伝子
         self.v = np.zeros(D) #変異ベクトル
         self.u = np.zeros(D) #トライアルベクトル
+
+        #JADE用のパラメータ
+        self.p = 0.05 #current-to-pbestの上p%を採用
+        self.c = 0.1
+        self.mu_F = 2*np.random.rand()
+        self.mu_CR = np.random.rand()
+        self.sum_F = 0
+        self.sum_expF = 0
+        self.sum_CR = 0
+        self.sum_N = 0
 
         self.path = f"./{target.__name__}/DE_{base_select}_{Y}_{crossover}_{NP}_{F}_{CR}.csv" #結果格納用アドレス名
 
         self.base_select = base_select #ベースベクトルの選択方法
-        self.dict_bs = {"rand":self.random_base_select, "best":self.best_base_select} #参照できるように辞書化
+        self.dict_bs = {"rand":self.random_base_select, "best":self.best_base_select, "current-to-pbest":self.current_to_pbest_base_select} #参照できるように辞書化
         self.crossover = crossover #交叉方法
         self.dict_cr = {"bin":self.binomial_crossover} #参照できるように辞書化
 
@@ -69,30 +82,41 @@ class DifferentialEvolution:
         result = np.zeros(self.NP)
         for i in range(self.NP):
             result[i] = self.target(self.ind[i])
+        self.id = np.argmin(result)
+        self.best_vector = self.ind[self.id].copy()
+        self.list_best = np.argsort(result)[::-1]
         return np.amin(result)
 
     #乱数によるベースベクトルの選択
     def random_base_select(self):
-        self.base_verctor = self.ind[np.random.randint(0,self.NP)].copy()
+        self.base_id = np.random.randint(0,self.NP)
+        self.base_vector = self.ind[self.base_id].copy()
 
     #最良選択によるベースベクトルの選定
     def best_base_select(self):
-        best = np.zeros(self.NP)
-        for i in range(self.NP):
-            best[i] = self.target(self.ind[i])
-        self.base_verctor = self.ind[np.argmin(best)]
+        self.base_vector = self.best_vector
+
+    #上位p%の乱数によるベースベクトル選択
+    def current_to_pbest_base_select(self):
+        n = int(self.NP*self.p)
+        if(n <= 0):
+            self.base_id = 0
+        else:
+            self.base_id = np.random.randint(0,n)
+        self.base_vector = self.target_vector+self.F*(self.ind[self.list_best[self.base_id]].copy()-self.target_vector)
 
     #差分突然変異
     def mutation(self):
         #重複のない乱数生成
         select = np.random.permutation(self.NP)
+        select = select[select != self.id]
         select = select[:2*self.Y]
         
         sigma = np.zeros(D)
         for i in range(self.Y):
             sigma += (self.ind[int(select[2*i])] - self.ind[int(select[2*i+1])])
 
-        self.v = self.base_verctor + self.F*sigma
+        self.v = self.base_vector + self.F*sigma
         
     #二項交差
     def  binomial_crossover(self):
@@ -102,14 +126,41 @@ class DifferentialEvolution:
             r = np.random.rand()
             if(r < self.CR) or (j == jr):
                 if(self.v[j] < 0):
-                    self.u[j] = self.base_verctor[j] + np.random.rand()*(-self.base_verctor[j])
+                    self.u[j] = self.base_vector[j] + np.random.rand()*(-self.base_vector[j])
                 elif (self.v[j] > 1):
-                    self.u[j] = self.base_verctor[j] + np.random.rand()*(1-self.base_verctor[j])
+                    self.u[j] = self.base_vector[j] + np.random.rand()*(1-self.base_vector[j])
                 else:
                     self.u[j] = self.v[j].copy()
 
+    #入れ替え
+    def substitute(self,i):
+        if (self.target(self.u) < self.target(self.target_vector)):
+            self.ind[i] = self.u.copy()
+            self.sum_N += 1
+            self.sum_F += self.F
+            self.sum_expF += self.F**2
+            self.sum_CR += self.CR
 
+    #従う確率のパラメータの変更
+    def exp_moving(self):
+        if(self.sum_F != 0)and(self.sum_N != 0):
+            self.mu_F = (1-self.c)*self.mu_F + self.c*self.sum_expF/self.sum_F
+            self.mu_CR = (1-self.c)*self.mu_CR + self.c*self.sum_CR/self.sum_N
+        
+        self.sum_N = 0
+        self.sum_F = 0
+        self.sum_expF = 0
+        self.sum_CR = 0
+    
+    
+    def set_parameter(self):
+        self.F = np.abs(stats.cauchy.rvs(loc=self.mu_F,scale=0.1))
+        self.CR = np.abs(stats.norm.rvs(loc=self.mu_CR,scale=0.1))
 
+        if(self.F > 2):
+            self.F = 2
+        if(self.CR > 1):
+            self.CR = 1
 
     #進化計算の実行
     def run(self):
@@ -124,9 +175,30 @@ class DifferentialEvolution:
                 self.dict_bs[self.base_select]()
                 self.mutation()
                 self.dict_cr[self.crossover]()
-                if (self.target(self.u) < self.target(self.target_vector)):
-                    self.ind[i] = self.u.copy()
+            if (self.target(self.u) < self.target(self.target_vector)):
+                self.ind[i] = self.u.copy()
             result[g+1] = self.evaluate()
+        return result
+
+    #JADEの実行
+    def jade(self):
+        result = np.zeros(int(self.G)+1)
+
+        self.initializate()
+        result[0] = self.evaluate()
+    
+        for g in range(int(self.G)):
+            for i in range(self.NP):
+                self.target_vector = self.ind[i].copy()
+                self.set_parameter()
+                self.dict_bs[self.base_select]()
+                self.mutation()
+                self.dict_cr[self.crossover]()
+                self.substitute(i)
+            result[g+1] = self.evaluate()
+            self.exp_moving()
+        self.f = 2*np.random.rand()
+        self.CR = np.random.rand()
         return result
 
 
@@ -150,6 +222,28 @@ class  Runner:
         for i in range(31):
             np.random.seed(i)
             result[:,i] = evolution.run()
+
+
+        for g in range(int(G)+1):
+            result[g,31] = np.average(result[g])
+            result[g,32] = np.median(result[g])
+            result[g,33] = np.std(result[g])
+
+
+        with open(evolution.path,'wt') as cfile:
+            np.savetxt(cfile,result,delimiter=',')
+            np.savetxt(cfile,[datetime.datetime.now()],fmt="%s")
+
+    
+    def jade(self):
+        G =  num_E/self.NP
+        evolution = DifferentialEvolution(self.NP,self.F,self.Y,self.CR,G,self.target,self.base_select,self.crossover)
+        evolution.path = f"./{self.target.__name__}/JADE_{self.base_select}_{self.Y}_{self.crossover}_{self.NP}_{self.F}_{self.CR}.csv"
+        result = np.zeros((int(G)+1,34))
+
+        for i in range(31):
+            np.random.seed(i)
+            result[:,i] = evolution.jade()
 
 
         for g in range(int(G)+1):
@@ -204,7 +298,8 @@ class  Runner:
 
 
 # -----main-----
-base_select = "best"
+base_select = "current-to-pbest"
 crossover = "bin"
-evolution = Runner(100,0.08,1,0,rosenbrock,base_select,crossover) #NP,F,Y,CR,target,base_select,crossover
-evolution.main()
+evolution = Runner(100,1,1,1,rastrigin,base_select,crossover) #NP,F,Y,CR,target,base_select,crossover
+# evolution.main()
+evolution.jade()

@@ -22,18 +22,19 @@ def read_file(subject,G,trails):
     with open(subject,"r")as fr:
         for i in range(G+1):
             result[i] = fr.readline().split(",")
-    return result[:,31]
+    return result
 
 
+#散布図の作成
 def make_scatterplot(result):
-    file_name = f"interim_report_{parameter[0][0]}.png"
+    file_name = f"report_{parameter[0][0]}.png"
     fig,ax = plt.subplots()
     for i in range(size):
         G = 10**5/int(parameter[i][5])
         x = np.arange(G+1)
-        ax.plot(x,result[i],label=make_name(i),marker="o",markersize=1)
+        ax.plot(x,logscale(result[i]),label=make_name(i),marker="o",markersize=1)
     ax.set_xlabel("generation")
-    ax.set_ylabel("fitness")
+    ax.set_ylabel("lg(fitness+1)")
     plt.legend()
     plt.grid()
     plt.savefig(file_name)
@@ -49,10 +50,13 @@ def make_name(cnt):
 
 
 #箱ひげ図作成
-def make_boxplot():
-    fig,ax = plt.subplots()
-    bp = ax.boxplot(result[G,:31])
-    ax.set_xticklabels([args.subject])
+def make_boxplot(data):
+    file_name = f"report_{parameter[0][0]}.png"
+    for i in range(size):
+        G = 10**5/int(parameter[i][5])
+        fig,ax = plt.subplots()
+        bp = ax.boxplot(data[i,G,:31])
+        ax.set_xticklabels(make_name(i))
     plt.grid()
     plt.show()
 
@@ -76,6 +80,10 @@ def read_es_file(G,trails):
         cnt += 1
     return result
 
+def logscale(value):
+    y = np.log10(value+1)
+    return y
+
 data = []
 cnt = 0
 trails = 33
@@ -83,7 +91,9 @@ for subject in args.subject:
     G = 10**5/int(parameter[cnt][5])
     data.append(read_file(subject,int(G),trails))
     cnt += 1
-make_scatterplot(data)
+data = np.array(data)
+make_scatterplot(data[:,:,31])
+# make_boxplot(data)
 
 # data = read_es_file(1,100)
 # make_estimate(data)
